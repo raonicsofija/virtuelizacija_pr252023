@@ -1,12 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Common
 {
-    public class Class1
+    [DataContract]
+    public class SessionMeta
     {
+        [DataMember]
+        public string[] Header { get; set; }
     }
 }
