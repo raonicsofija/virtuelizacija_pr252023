@@ -12,12 +12,14 @@ namespace Client
     {
         static void Main(string[] args)
         {
+            ChannelFactory<IDroneTelemetryService> factory = null;
+            IDroneTelemetryService proxy = null;
+
             try
             {
-                ChannelFactory<IDroneTelemetryService> factory =
-                    new ChannelFactory<IDroneTelemetryService>("DroneTelemetryService");
+                factory = new ChannelFactory<IDroneTelemetryService>("DroneTelemetryService");
 
-                IDroneTelemetryService proxy = factory.CreateChannel();
+                proxy = factory.CreateChannel();
 
                 SessionMeta meta = new SessionMeta
                 {
@@ -32,7 +34,8 @@ namespace Client
                     }
                 };
 
-                Console.WriteLine(proxy.StartSession(meta));
+                ServiceResponse startResponse = proxy.StartSession(meta);
+                PrintResponse(startResponse);
 
                 DroneSample sample = new DroneSample
                 {
@@ -44,20 +47,66 @@ namespace Client
                     Time = DateTime.Now.ToString()
                 };
 
-                Console.WriteLine(proxy.PushSample(sample));
-                Console.WriteLine(proxy.EndSession());
+                ServiceResponse pushResponse = proxy.PushSample(sample);
+                PrintResponse(pushResponse);
+
+                ServiceResponse endResponse = proxy.EndSession();
+                PrintResponse(endResponse);
 
                 ((IClientChannel)proxy).Close();
                 factory.Close();
             }
+            catch (FaultException<DataFormatFault> ex)
+            {
+                Console.WriteLine("DATA FORMAT FAULT");
+                Console.WriteLine("Field: " + ex.Detail.FieldName);
+                Console.WriteLine("Reason: " + ex.Detail.Reason);
+
+                AbortChannel(proxy, factory);
+            }
+            catch (FaultException<ValidationFault> ex)
+            {
+                Console.WriteLine("VALIDATION FAULT");
+                Console.WriteLine("Field: " + ex.Detail.FieldName);
+                Console.WriteLine("Reason: " + ex.Detail.Reason);
+
+                AbortChannel(proxy, factory);
+            }
             catch (Exception ex)
             {
-                Console.WriteLine("Client error:");
+                Console.WriteLine("CLIENT ERROR");
                 Console.WriteLine(ex.Message);
+
+                AbortChannel(proxy, factory);
             }
 
             Console.WriteLine("Press ENTER to exit.");
             Console.ReadLine();
+        }
+
+        private static void PrintResponse(ServiceResponse response)
+        {
+            Console.WriteLine("ACK: " + response.Ack);
+            Console.WriteLine("Message: " + response.Message);
+            Console.WriteLine("Status: " + response.Status);
+            Console.WriteLine("Accepted: " + response.AcceptedCount);
+            Console.WriteLine("Rejected: " + response.RejectedCount);
+            Console.WriteLine();
+        }
+
+        private static void AbortChannel(IDroneTelemetryService proxy, ChannelFactory<IDroneTelemetryService> factory)
+        {
+            IClientChannel clientChannel = proxy as IClientChannel;
+
+            if (clientChannel != null)
+            {
+                clientChannel.Abort();
+            }
+
+            if (factory != null)
+            {
+                factory.Abort();
+            }
         }
     }
 }

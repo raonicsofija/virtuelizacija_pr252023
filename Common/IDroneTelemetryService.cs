@@ -11,12 +11,17 @@ namespace Common
     public interface IDroneTelemetryService
     {
         [OperationContract]
-        string StartSession(SessionMeta meta);
+        [FaultContract(typeof(DataFormatFault))]
+        [FaultContract(typeof(ValidationFault))]
+        ServiceResponse StartSession(SessionMeta meta);
 
         [OperationContract]
-        string PushSample(DroneSample sample);
+        [FaultContract(typeof(DataFormatFault))]
+        [FaultContract(typeof(ValidationFault))]
+        ServiceResponse PushSample(DroneSample sample);
 
         [OperationContract]
-        string EndSession();
+        [FaultContract(typeof(ValidationFault))]
+        ServiceResponse EndSession();
     }
 }
