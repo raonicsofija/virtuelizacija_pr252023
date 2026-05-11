@@ -152,11 +152,16 @@ namespace Service
                 ThrowValidationFault("Time", "Time is required.");
             }
 
-            DateTime parsedTime;
+            double parsedTime;
 
-            if (!DateTime.TryParse(sample.Time, CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedTime))
+            if (!double.TryParse(sample.Time, NumberStyles.Float, CultureInfo.InvariantCulture, out parsedTime))
             {
                 ThrowDataFormatFault("Time", "Time format is not valid.");
+            }
+
+            if (parsedTime < 0)
+            {
+                ThrowValidationFault("Time", "Time must be greater than or equal to 0.");
             }
 
             if (double.IsNaN(sample.LinearAccelerationX) || double.IsInfinity(sample.LinearAccelerationX))

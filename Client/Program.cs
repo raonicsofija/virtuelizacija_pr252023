@@ -15,46 +15,55 @@ namespace Client
             ChannelFactory<IDroneTelemetryService> factory = null;
             IDroneTelemetryService proxy = null;
 
+            Console.WriteLine("Enter CSV file path or press ENTER to use default Data file:");
+            string csvPath = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(csvPath))
+            {
+                csvPath = @"..\..\..\Data\16.csv";
+            }
+
             try
             {
-                factory = new ChannelFactory<IDroneTelemetryService>("DroneTelemetryService");
-
-                proxy = factory.CreateChannel();
-
-                SessionMeta meta = new SessionMeta
+                using (CsvDroneReader reader = new CsvDroneReader(csvPath))
                 {
-                    Header = new string[]
+                    List<DroneSample> samples = reader.ReadFirst120Rows();
+
+                    Console.WriteLine("Loaded samples: " + samples.Count);
+
+                    factory = new ChannelFactory<IDroneTelemetryService>("DroneTelemetryService");
+                    proxy = factory.CreateChannel();
+
+                    SessionMeta meta = new SessionMeta
                     {
-                        "LinearAccelerationX",
-                        "LinearAccelerationY",
-                        "LinearAccelerationZ",
-                        "WindSpeed",
-                        "WindAngle",
-                        "Time"
+                        Header = new string[]
+                        {
+                            "LinearAccelerationX",
+                            "LinearAccelerationY",
+                            "LinearAccelerationZ",
+                            "WindSpeed",
+                            "WindAngle",
+                            "Time"
+                        }
+                    };
+
+                    ServiceResponse startResponse = proxy.StartSession(meta);
+                    PrintResponse(startResponse);
+
+                    for (int i = 0; i < samples.Count; i++)
+                    {
+                        ServiceResponse pushResponse = proxy.PushSample(samples[i]);
+
+                        Console.WriteLine("Sample " + (i + 1) + " sent.");
+                        PrintResponse(pushResponse);
                     }
-                };
 
-                ServiceResponse startResponse = proxy.StartSession(meta);
-                PrintResponse(startResponse);
+                    ServiceResponse endResponse = proxy.EndSession();
+                    PrintResponse(endResponse);
 
-                DroneSample sample = new DroneSample
-                {
-                    LinearAccelerationX = 0.12,
-                    LinearAccelerationY = 0.05,
-                    LinearAccelerationZ = 9.81,
-                    WindSpeed = 4.5,
-                    WindAngle = 120,
-                    Time = DateTime.Now.ToString()
-                };
-
-                ServiceResponse pushResponse = proxy.PushSample(sample);
-                PrintResponse(pushResponse);
-
-                ServiceResponse endResponse = proxy.EndSession();
-                PrintResponse(endResponse);
-
-                ((IClientChannel)proxy).Close();
-                factory.Close();
+                    ((IClientChannel)proxy).Close();
+                    factory.Close();
+                }
             }
             catch (FaultException<DataFormatFault> ex)
             {
