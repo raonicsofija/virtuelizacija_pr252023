@@ -14,13 +14,26 @@ namespace Service
         private static bool sessionStarted = false;
         private static int acceptedCount = 0;
         private static int rejectedCount = 0;
+        private static TextFileManager fileManager = null;
         public ServiceResponse StartSession(SessionMeta meta)
         {
             ValidateMeta(meta);
 
+            if (fileManager != null)
+            {
+                fileManager.Dispose();
+                fileManager = null;
+            }
+
+            fileManager = new TextFileManager("ServiceStorage\\transfer_log.txt");
+            fileManager.ClearText();
+
             sessionStarted = true;
             acceptedCount = 0;
             rejectedCount = 0;
+
+            fileManager.AppendText("StartSession called.");
+            fileManager.AppendText("Session started.");
 
             return new ServiceResponse
             {
@@ -35,20 +48,17 @@ namespace Service
         {
             if (!sessionStarted)
             {
-                rejectedCount++;
-
-                throw new FaultException<ValidationFault>(
-                    new ValidationFault
-                    {
-                        FieldName = "Session",
-                        Reason = "Session has not been started."
-                    },
-                    new FaultReason("Session has not been started."));
+                ThrowValidationFault("Session", "Session has not been started.");
             }
 
             ValidateSample(sample);
 
             acceptedCount++;
+
+            if (fileManager != null)
+            {
+                fileManager.AppendText("Sample accepted. Accepted count = " + acceptedCount);
+            }
 
             return new ServiceResponse
             {
@@ -63,16 +73,20 @@ namespace Service
         {
             if (!sessionStarted)
             {
-                throw new FaultException<ValidationFault>(
-                    new ValidationFault
-                    {
-                        FieldName = "Session",
-                        Reason = "Cannot end session because session has not been started."
-                    },
-                    new FaultReason("Cannot end session because session has not been started."));
+                ThrowValidationFault("Session", "Cannot end session because session has not been started.");
             }
 
             sessionStarted = false;
+
+            if (fileManager != null)
+            {
+                fileManager.AppendText("EndSession called.");
+                fileManager.AppendText("Transfer completed. Accepted: " + acceptedCount + ", Rejected: " + rejectedCount);
+                fileManager.AppendText("Dispose will be called now.");
+
+                fileManager.Dispose();
+                fileManager = null;
+            }
 
             return new ServiceResponse
             {
@@ -191,9 +205,25 @@ namespace Service
             }
         }
 
+        private void CloseFileManagerAfterError(string reason)
+        {
+            if (fileManager != null)
+            {
+                fileManager.AppendText("Transfer interrupted. Reason: " + reason);
+                fileManager.AppendText("Dispose will be called after error.");
+
+                fileManager.Dispose();
+                fileManager = null;
+            }
+
+            sessionStarted = false;
+        }
+
         private void ThrowDataFormatFault(string fieldName, string reason)
         {
             rejectedCount++;
+
+            CloseFileManagerAfterError(reason);
 
             throw new FaultException<DataFormatFault>(
                 new DataFormatFault
@@ -207,6 +237,8 @@ namespace Service
         private void ThrowValidationFault(string fieldName, string reason)
         {
             rejectedCount++;
+
+            CloseFileManagerAfterError(reason);
 
             throw new FaultException<ValidationFault>(
                 new ValidationFault
