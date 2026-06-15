@@ -100,6 +100,8 @@ namespace Service
 
             AnalyzeWindAngle(sample);
 
+            AnalyzeLateralAsymmetry(sample);
+
             if (measurementsFileManager != null)
             {
                 measurementsFileManager.AppendLine(SampleToCsv(sample));
@@ -460,6 +462,40 @@ namespace Service
             }
 
             return result;
+        }
+
+        private static void AnalyzeLateralAsymmetry(DroneSample sample)
+        {
+            double lThreshold = GetDoubleFromConfig("L_threshold", 0.7);
+
+            double x = sample.LinearAccelerationX;
+            double y = sample.LinearAccelerationY;
+            double z = sample.LinearAccelerationZ;
+
+            double aNorm = Math.Sqrt(x * x + y * y + z * z);
+
+            if (aNorm == 0)
+            {
+                return;
+            }
+
+            double wAsym = Math.Abs(x) / aNorm;
+
+            if (wAsym > lThreshold)
+            {
+                string direction;
+
+                if (x > 0)
+                {
+                    direction = "right side";
+                }
+                else
+                {
+                    direction = "left side";
+                }
+
+                RaiseWarning("LateralAsymmetryWarning: Wasym = " + wAsym.ToString(CultureInfo.InvariantCulture) + ", direction = " + direction);
+            }
         }
     }
 }
