@@ -11,8 +11,30 @@ using System.IO;
 
 namespace Service
 {
+    public class TelemetryEventArgs : EventArgs
+    {
+        public string Message { get; private set; }
+
+        public TelemetryEventArgs(string message)
+        {
+            Message = message;
+        }
+    }
     public class DroneTelemetryService : IDroneTelemetryService
     {
+        public delegate void TelemetryEventHandler(object sender, TelemetryEventArgs e);
+        public static event TelemetryEventHandler OnTransferStarted;
+        public static event TelemetryEventHandler OnSampleReceived;
+        public static event TelemetryEventHandler OnTransferCompleted;
+        public static event TelemetryEventHandler OnWarningRaised;
+        static DroneTelemetryService()
+        {
+            OnTransferStarted += LogEvent;
+            OnSampleReceived += LogEvent;
+            OnTransferCompleted += LogEvent;
+            OnWarningRaised += LogEvent;
+        }
+
         private static bool sessionStarted = false;
         private static int acceptedCount = 0;
         private static int rejectedCount = 0;
@@ -40,7 +62,7 @@ namespace Service
             acceptedCount = 0;
             rejectedCount = 0;
 
-            Console.WriteLine("Transfer in progress...");
+            RaiseTransferStarted();
 
             fileManager.AppendText("StartSession called.");
             fileManager.AppendText("Session started.");
@@ -65,7 +87,7 @@ namespace Service
 
             acceptedCount++;
 
-            Console.WriteLine("Transfer in progress... received sample number " + acceptedCount);
+            RaiseSampleReceived(acceptedCount);
 
             if (measurementsFileManager != null)
             {
@@ -95,7 +117,7 @@ namespace Service
 
             sessionStarted = false;
 
-            Console.WriteLine("Transfer completed.");
+            RaiseTransferCompleted();
 
             if (fileManager != null)
             {
@@ -321,6 +343,48 @@ namespace Service
             {
                 rejectsFileManager.Dispose();
                 rejectsFileManager = null;
+            }
+        }
+
+        private static void RaiseTransferStarted()
+        {
+            if (OnTransferStarted != null)
+            {
+                OnTransferStarted(null, new TelemetryEventArgs("Transfer started."));
+            }
+        }
+
+        private static void RaiseSampleReceived(int sampleNumber)
+        {
+            if (OnSampleReceived != null)
+            {
+                OnSampleReceived(null, new TelemetryEventArgs("Sample received. Number: " + sampleNumber));
+            }
+        }
+
+        private static void RaiseTransferCompleted()
+        {
+            if (OnTransferCompleted != null)
+            {
+                OnTransferCompleted(null, new TelemetryEventArgs("Transfer completed."));
+            }
+        }
+
+        private static void RaiseWarning(string message)
+        {
+            if (OnWarningRaised != null)
+            {
+                OnWarningRaised(null, new TelemetryEventArgs("Warning: " + message));
+            }
+        }
+
+        private static void LogEvent(object sender, TelemetryEventArgs e)
+        {
+            Console.WriteLine(e.Message);
+
+            if (fileManager != null)
+            {
+                fileManager.AppendText(e.Message);
             }
         }
     }
