@@ -41,6 +41,11 @@ namespace Service
         private static TextFileManager fileManager = null;
         private static TextFileManager measurementsFileManager = null;
         private static TextFileManager rejectsFileManager = null;
+        private static bool hasPreviousWindAngle = false;
+        private static double previousWindAngle = 0;
+        private static double windAngleSum = 0;
+        private static int windAngleCount = 0;
+
         public ServiceResponse StartSession(SessionMeta meta)
         {
             ValidateMeta(meta);
@@ -61,6 +66,10 @@ namespace Service
             sessionStarted = true;
             acceptedCount = 0;
             rejectedCount = 0;
+            hasPreviousWindAngle = false;
+            previousWindAngle = 0;
+            windAngleSum = 0;
+            windAngleCount = 0;
 
             RaiseTransferStarted();
 
@@ -88,6 +97,8 @@ namespace Service
             acceptedCount++;
 
             RaiseSampleReceived(acceptedCount);
+
+            AnalyzeWindAngle(sample);
 
             if (measurementsFileManager != null)
             {
@@ -386,6 +397,69 @@ namespace Service
             {
                 fileManager.AppendText(e.Message);
             }
+        }
+
+        private static void AnalyzeWindAngle(DroneSample sample)
+        {
+            double wThreshold = GetDoubleFromConfig("W_threshold", 30);
+            double averageDeviation = GetDoubleFromConfig("AverageDeviation", 0.25);
+
+            if (hasPreviousWindAngle)
+            {
+                double deltaWindAngle = sample.WindAngle - previousWindAngle;
+
+                if (Math.Abs(deltaWindAngle) > wThreshold)
+                {
+                    string direction;
+
+                    if (deltaWindAngle > 0)
+                    {
+                        direction = "clockwise";
+                    }
+                    else
+                    {
+                        direction = "counterclockwise";
+                    }
+
+                    RaiseWarning("WindDirectionShift: delta = " + deltaWindAngle.ToString(CultureInfo.InvariantCulture) + ", direction = " + direction);
+                }
+            }
+
+            previousWindAngle = sample.WindAngle;
+            hasPreviousWindAngle = true;
+
+            windAngleSum += sample.WindAngle;
+            windAngleCount++;
+
+            double windAngleMean = windAngleSum / windAngleCount;
+
+            if (windAngleCount > 1)
+            {
+                double lowerLimit = windAngleMean * (1 - averageDeviation);
+                double upperLimit = windAngleMean * (1 + averageDeviation);
+
+                if (sample.WindAngle < lowerLimit)
+                {
+                    RaiseWarning("OutOfBandWarning: WindAngle is below expected value. WindAngle = " + sample.WindAngle.ToString(CultureInfo.InvariantCulture) + ", mean = " + windAngleMean.ToString(CultureInfo.InvariantCulture));
+                }
+                else if (sample.WindAngle > upperLimit)
+                {
+                    RaiseWarning("OutOfBandWarning: WindAngle is above expected value. WindAngle = " + sample.WindAngle.ToString(CultureInfo.InvariantCulture) + ", mean = " + windAngleMean.ToString(CultureInfo.InvariantCulture));
+                }
+            }
+        }
+        private static double GetDoubleFromConfig(string key, double defaultValue)
+        {
+            string value = ConfigurationManager.AppSettings[key];
+
+            double result;
+
+            if (!double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result))
+            {
+                result = defaultValue;
+            }
+
+            return result;
         }
     }
 }
