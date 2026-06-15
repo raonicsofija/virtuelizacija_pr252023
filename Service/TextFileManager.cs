@@ -52,6 +52,28 @@ namespace Service
             writer.Flush();
         }
 
+        public void AppendLine(string text)
+        {
+            CheckIfDisposed();
+
+            CloseWriter();
+
+            writer = new StreamWriter(path, true);
+            writer.WriteLine(text);
+            writer.Flush();
+        }
+
+        public void ClearAndWriteLine(string text)
+        {
+            CheckIfDisposed();
+
+            CloseWriter();
+
+            writer = new StreamWriter(path, false);
+            writer.WriteLine(text);
+            writer.Flush();
+        }
+
         public string ReadAllText()
         {
             CheckIfDisposed();

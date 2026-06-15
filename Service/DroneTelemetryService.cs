@@ -6,6 +6,8 @@ using System.Linq;
 using System.ServiceModel;
 using System.Text;
 using System.Threading.Tasks;
+using System.Configuration;
+using System.IO;
 
 namespace Service
 {
@@ -15,18 +17,24 @@ namespace Service
         private static int acceptedCount = 0;
         private static int rejectedCount = 0;
         private static TextFileManager fileManager = null;
+        private static TextFileManager measurementsFileManager = null;
+        private static TextFileManager rejectsFileManager = null;
         public ServiceResponse StartSession(SessionMeta meta)
         {
             ValidateMeta(meta);
 
-            if (fileManager != null)
-            {
-                fileManager.Dispose();
-                fileManager = null;
-            }
+            DisposeFileManagers();
 
-            fileManager = new TextFileManager("ServiceStorage\\transfer_log.txt");
+            string storagePath = GetStoragePath();
+
+            fileManager = new TextFileManager(Path.Combine(storagePath, "transfer_log.txt"));
+            measurementsFileManager = new TextFileManager(Path.Combine(storagePath, "measurements_session.csv"));
+            rejectsFileManager = new TextFileManager(Path.Combine(storagePath, "rejects.csv"));
+
             fileManager.ClearText();
+
+            measurementsFileManager.ClearAndWriteLine("LinearAccelerationX,LinearAccelerationY,LinearAccelerationZ,WindSpeed,WindAngle,Time");
+            rejectsFileManager.ClearAndWriteLine("Reason,LinearAccelerationX,LinearAccelerationY,LinearAccelerationZ,WindSpeed,WindAngle,Time");
 
             sessionStarted = true;
             acceptedCount = 0;
@@ -54,6 +62,11 @@ namespace Service
             ValidateSample(sample);
 
             acceptedCount++;
+
+            if (measurementsFileManager != null)
+            {
+                measurementsFileManager.AppendLine(SampleToCsv(sample));
+            }
 
             if (fileManager != null)
             {
@@ -84,8 +97,7 @@ namespace Service
                 fileManager.AppendText("Transfer completed. Accepted: " + acceptedCount + ", Rejected: " + rejectedCount);
                 fileManager.AppendText("Dispose will be called now.");
 
-                fileManager.Dispose();
-                fileManager = null;
+                DisposeFileManagers();
             }
 
             return new ServiceResponse
@@ -217,8 +229,7 @@ namespace Service
                 fileManager.AppendText("Transfer interrupted. Reason: " + reason);
                 fileManager.AppendText("Dispose will be called after error.");
 
-                fileManager.Dispose();
-                fileManager = null;
+                DisposeFileManagers();
             }
 
             sessionStarted = false;
@@ -226,7 +237,7 @@ namespace Service
 
         private void ThrowDataFormatFault(string fieldName, string reason)
         {
-            rejectedCount++;
+            WriteReject(reason);
 
             CloseFileManagerAfterError(reason);
 
@@ -241,7 +252,7 @@ namespace Service
 
         private void ThrowValidationFault(string fieldName, string reason)
         {
-            rejectedCount++;
+            WriteReject(reason);
 
             CloseFileManagerAfterError(reason);
 
@@ -252,6 +263,59 @@ namespace Service
                     Reason = reason
                 },
                 new FaultReason(reason));
+        }
+
+        private string GetStoragePath()
+        {
+            string storagePath = ConfigurationManager.AppSettings["StoragePath"];
+
+            if (string.IsNullOrWhiteSpace(storagePath))
+            {
+                storagePath = "ServiceStorage";
+            }
+
+            return storagePath;
+        }
+
+        private string SampleToCsv(DroneSample sample)
+        {
+            return sample.LinearAccelerationX.ToString(CultureInfo.InvariantCulture) + "," +
+                   sample.LinearAccelerationY.ToString(CultureInfo.InvariantCulture) + "," +
+                   sample.LinearAccelerationZ.ToString(CultureInfo.InvariantCulture) + "," +
+                   sample.WindSpeed.ToString(CultureInfo.InvariantCulture) + "," +
+                   sample.WindAngle.ToString(CultureInfo.InvariantCulture) + "," +
+                   sample.Time;
+        }
+
+        private void WriteReject(string reason)
+        {
+            rejectedCount++;
+
+            if (rejectsFileManager != null)
+            {
+                rejectsFileManager.AppendLine(reason + ",,,,,,");
+            }
+        }
+
+        private void DisposeFileManagers()
+        {
+            if (fileManager != null)
+            {
+                fileManager.Dispose();
+                fileManager = null;
+            }
+
+            if (measurementsFileManager != null)
+            {
+                measurementsFileManager.Dispose();
+                measurementsFileManager = null;
+            }
+
+            if (rejectsFileManager != null)
+            {
+                rejectsFileManager.Dispose();
+                rejectsFileManager = null;
+            }
         }
     }
 }
