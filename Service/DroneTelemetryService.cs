@@ -40,6 +40,8 @@ namespace Service
             acceptedCount = 0;
             rejectedCount = 0;
 
+            Console.WriteLine("Transfer in progress...");
+
             fileManager.AppendText("StartSession called.");
             fileManager.AppendText("Session started.");
 
@@ -62,6 +64,8 @@ namespace Service
             ValidateSample(sample);
 
             acceptedCount++;
+
+            Console.WriteLine("Transfer in progress... received sample number " + acceptedCount);
 
             if (measurementsFileManager != null)
             {
@@ -90,6 +94,8 @@ namespace Service
             }
 
             sessionStarted = false;
+
+            Console.WriteLine("Transfer completed.");
 
             if (fileManager != null)
             {
