@@ -1,6 +1,7 @@
 ﻿using Common;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.ServiceModel;
 using System.Text;
@@ -15,13 +16,21 @@ namespace Client
             ChannelFactory<IDroneTelemetryService> factory = null;
             IDroneTelemetryService proxy = null;
 
-            Console.WriteLine("Enter CSV file path or press ENTER to use default Data file:");
-            string csvPath = Console.ReadLine();
+            string csvFileName;
 
-            if (string.IsNullOrWhiteSpace(csvPath))
+            do
             {
-                csvPath = @"..\..\..\Data\16.csv";
-            }
+                Console.WriteLine("Enter CSV file name:");
+                csvFileName = Console.ReadLine();
+
+                if (string.IsNullOrWhiteSpace(csvFileName))
+                {
+                    Console.WriteLine("CSV file name is required.");
+                }
+
+            } while (string.IsNullOrWhiteSpace(csvFileName));
+
+            string csvPath = Path.Combine("..", "..", "..", "Data", csvFileName);
 
             try
             {
